@@ -2,12 +2,12 @@ import java.io.*;
 import java.util.*;
 import java.time.*;
 
-// Interface for displayable entities
+// Interface
 interface Manageable {
     void displayInfo();
 }
 
-// Base class Person
+// Base class
 class Person {
     protected String name;
 
@@ -18,10 +18,10 @@ class Person {
 
 // Student class
 class Student extends Person implements Manageable {
-    private String studentId;
-    private String year;
-    private String semester;
-    private Set<String> attendanceDates; // stores dates in YYYY-MM-DD
+    private final String studentId;
+    private final String year;
+    private final String semester;
+    private final Set<String> attendanceDates;
 
     public Student(String studentId, String name, String year, String semester) {
         super(name);
@@ -59,13 +59,16 @@ class Student extends Person implements Manageable {
     }
 
     public String getData() {
-        return studentId + "," + name + "," + year + "," + semester + "," + String.join(";", attendanceDates);
+        return studentId + "," + name + "," + year + "," + semester + "," +
+                String.join(";", attendanceDates);
     }
 
     public static Student fromData(String line) {
         String[] parts = line.split(",", 5);
         if (parts.length < 5) return null;
+
         Student s = new Student(parts[0], parts[1], parts[2], parts[3]);
+
         if (!parts[4].isEmpty()) {
             String[] dates = parts[4].split(";");
             s.attendanceDates.addAll(Arrays.asList(dates));
@@ -76,9 +79,13 @@ class Student extends Person implements Manageable {
     public String getStudentId() {
         return studentId;
     }
+
+    public String getName() {
+        return name;
+    }
 }
 
-// File handling for students
+// File handling
 class FileHandler {
     private static final String FILE_NAME = "students.txt";
 
@@ -88,12 +95,16 @@ class FileHandler {
                 fw.write(s.getData() + "\n");
             }
         } catch (IOException e) {
-            System.out.println("File error");
+            System.out.println("File error while saving.");
         }
     }
 
     public static List<Student> readStudentsFromFile() {
         List<Student> students = new ArrayList<>();
+
+        File file = new File(FILE_NAME);
+        if (!file.exists()) return students;
+
         try (BufferedReader br = new BufferedReader(new FileReader(FILE_NAME))) {
             String line;
             while ((line = br.readLine()) != null) {
@@ -101,63 +112,127 @@ class FileHandler {
                 if (s != null) students.add(s);
             }
         } catch (IOException e) {
-            System.out.println("No records found");
+            System.out.println("File error while reading.");
         }
         return students;
     }
-
-    public static void displayAllStudents() {
-        List<Student> students = readStudentsFromFile();
-        if (students.isEmpty()) {
-            System.out.println("No students found.");
-        } else {
-            for (Student s : students) {
-                s.displayInfo();
-                System.out.println("--------------------");
-            }
-        }
-    }
-
-    public static void markAttendance(String studentId) {
-        List<Student> students = readStudentsFromFile();
-        boolean found = false;
-        String today = LocalDate.now().toString();
-        for (Student s : students) {
-            if (s.getStudentId().equals(studentId)) {
-                s.markAttendance(today);
-                found = true;
-                break;
-            }
-        }
-        if (found) saveAllStudents(students);
-        else System.out.println("Student ID not found.");
-    }
-
-    public static void showMonthlyReport(int year, int month) {
-        List<Student> students = readStudentsFromFile();
-        if (students.isEmpty()) {
-            System.out.println("No students found.");
-            return;
-        }
-        System.out.println("Attendance Report for " + YearMonth.of(year, month));
-        for (Student s : students) {
-            double percent = s.getMonthlyAttendancePercentage(year, month);
-            System.out.printf("%s (%s): %.2f%%\n", s.name, s.getStudentId(), percent);
-        }
-    }
 }
 
-// Auto-save simulation thread
+// Auto Save Thread
 class AutoSaveThread extends Thread {
     public void run() {
         try {
-            while (true) {
+            while (!isInterrupted()) {
                 Thread.sleep(10000);
                 System.out.println("Auto save running...");
             }
         } catch (InterruptedException e) {
-            System.out.println("Thread stopped");
+            System.out.println("Auto save stopped.");
         }
     }
 }
 
+// Main class
+public class Main {
+
+    public static void main(String[] args) {
+
+        Scanner sc = new Scanner(System.in);
+        List<Student> students = FileHandler.readStudentsFromFile();
+
+        AutoSaveThread autoSave = new AutoSaveThread();
+        autoSave.start();
+
+        while (true) {
+            System.out.println("\n===== Student Attendance System =====");
+            System.out.println("1. Add Student");
+            System.out.println("2. Display All Students");
+            System.out.println("3. Mark Attendance");
+            System.out.println("4. Monthly Report");
+            System.out.println("5. Exit");
+            System.out.print("Choose option: ");
+
+            int choice = sc.nextInt();
+            sc.nextLine();
+
+            switch (choice) {
+
+                case 1:
+                    System.out.print("Enter Student ID: ");
+                    String id = sc.nextLine();
+
+                    System.out.print("Enter Name: ");
+                    String name = sc.nextLine();
+
+                    System.out.print("Enter Year: ");
+                    String year = sc.nextLine();
+
+                    System.out.print("Enter Semester: ");
+                    String sem = sc.nextLine();
+
+                    Student newStudent = new Student(id, name, year, sem);
+                    students.add(newStudent);
+                    FileHandler.saveAllStudents(students);
+                    System.out.println("Student added successfully.");
+                    break;
+
+                case 2:
+                    if (students.isEmpty()) {
+                        System.out.println("No students found.");
+                    } else {
+                        for (Student s : students) {
+                            s.displayInfo();
+                            System.out.println("--------------------");
+                        }
+                    }
+                    break;
+
+                case 3:
+                    System.out.print("Enter Student ID: ");
+                    String sid = sc.nextLine();
+
+                    boolean found = false;
+                    String today = LocalDate.now().toString();
+
+                    for (Student s : students) {
+                        if (s.getStudentId().equals(sid)) {
+                            s.markAttendance(today);
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (!found) {
+                        System.out.println("Student not found.");
+                    }
+
+                    FileHandler.saveAllStudents(students);
+                    break;
+
+                case 4:
+                    System.out.print("Enter Year (YYYY): ");
+                    int y = sc.nextInt();
+
+                    System.out.print("Enter Month (1-12): ");
+                    int m = sc.nextInt();
+
+                    for (Student s : students) {
+                        double percent = s.getMonthlyAttendancePercentage(y, m);
+                        System.out.printf("%s (%s): %.2f%%\n",
+                                s.getName(),
+                                s.getStudentId(),
+                                percent);
+                    }
+                    break;
+
+                case 5:
+                    autoSave.interrupt();
+                    System.out.println("Exiting system...");
+                    return;
+
+                default:
+                    System.out.println("Invalid option.");
+            }
+        }
+    }
+}
